@@ -38,7 +38,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_CODE_FILE_CHOOSER = 1001;
     private static final int REQUEST_CODE_PERMISSIONS = 1002;
     private static final String APP_ASSETS_HOST = "appassets.androidx.webkit.assets";
-    private static final String START_PAGE = "https://" + APP_ASSETS_HOST + "/index.html";
+    private static final String START_PAGE = "https://" + APP_ASSETS_HOST + "/assets/www/index.html";
 
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
@@ -63,7 +63,7 @@ public class MainActivity extends Activity {
 
     private void configureWebView() {
         final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
-                .addPathHandler(new WebViewAssetLoader.AssetsPathHandler(this, "www"))
+                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
                 .build();
 
         WebSettings s = webView.getSettings();
