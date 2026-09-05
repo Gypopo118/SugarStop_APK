@@ -71,7 +71,7 @@ jobs:
         run: |
           ls -la app/build/outputs/apk/debug/
           cp app/build/outputs/apk/debug/app-debug.apk \
-             "SugarStop-v1.0.2-build.${{ github.run_number }}.apk"
+             "SugarStop-v1.0.3-build.${{ github.run_number }}.apk"
           ls -la *.apk
         working-directory: android
 
@@ -90,7 +90,7 @@ jobs:
             echo ''
             echo 'Скачивание: этот запуск → раздел **Artifacts** → **SugarStop-APK**.'
             echo ''
-            echo 'Файл: `SugarStop-v1.0.2-build.${{ github.run_number }}.apk`'
+            echo 'Файл: `SugarStop-v1.0.3-build.${{ github.run_number }}.apk`'
             echo ''
             echo 'Установка на Android: скопируйте APK на телефон → откройте → разрешите «Установку из неизвестных источников» → Установить.'
             echo 'При первом запуске выдайте доступ к камере (и микрофону для голосового ввода).'

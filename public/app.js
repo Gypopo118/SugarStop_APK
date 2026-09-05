@@ -161,13 +161,22 @@ function setPhoto(dataUrl) {
 btnCamera.addEventListener("click", () => {
   if (mediaStream && !camStream.hidden) {
     setPhoto(photoFromVideoFrame());
-  } else if (isApkWebView && cameraInput) {
-    // В APK живого видоискателя нет — сразу открываем нативную камеру.
+  } else if (isApkWebView && window.SugarStopNative && typeof window.SugarStopNative.takePhoto === "function") {
+    // В APK сразу открываем нативную камеру: один тап — объектив, без выбора.
+    window.SugarStopNative.takePhoto();
+  } else if (cameraInput && isApkWebView) {
     cameraInput.click();
   } else {
     startCamera();
   }
 });
+
+// Колбэк для нативной камеры APK: фото возвращается сюда как data URL.
+window.__sugarstopNativePhoto = function (dataUrl) {
+  if (typeof dataUrl === "string" && dataUrl.indexOf("data:image/") === 0) {
+    setPhoto(dataUrl);
+  }
+};
 
 function processImageFile(file) {
   const reader = new FileReader();
