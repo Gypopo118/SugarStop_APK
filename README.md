@@ -48,7 +48,7 @@ wrangler.toml      конфигурация Pages-проекта
 
 1. Откройте репозиторий на GitHub → вкладка **Actions**.
 2. Выберите последний успешный запуск **Build SugarStop APK**.
-3. Внизу страницы запуска, раздел **Artifacts** → **SugarStop-APK** → скачайте `SugarStop-v1.0.1-build.N.apk`.
+3. Внизу страницы запуска, раздел **Artifacts** → **SugarStop-APK** → скачайте `SugarStop-v1.0.2-build.N.apk`.
 4. Пометьте релиз тегом `v*` (например `v1.0.0`) — тот же APK появится во вкладке **Releases**.
 
 Сборка запускается автоматически при каждом пуше в `master`/`main`, вручную — кнопкой **Run workflow** на странице workflow.
@@ -65,8 +65,8 @@ wrangler.toml      конфигурация Pages-проекта
 
 ### Как это устроено
 
-- `android/` — минимальный нативный проект (Java + androidx.webkit): `MainActivity` с WebView. Ассеты отдаются через WebViewAssetLoader под https-origin, поэтому работает живой видоискатель камеры; разрешения на камеру/микрофон, выбор фото (камера/галерея), внешние ссылки открываются в браузере. Если живой видоискатель недоступен на устройстве, кнопка «Сделать фото» открывает нативную камеру.
-- Workflow `.github/workflows/build-apk.yml` перед сборкой копирует `public/` в `android/app/src/main/assets/www/`. Оригиналы в `public/` не меняются.
+- `android/` — минимальный нативный проект на Java без сторонних зависимостей: `MainActivity` с WebView поверх встроенной копии PWA (`file://`). Живого видоискателя в этом режиме нет — кнопка «Сделать фото» сразу открывает нативную камеру телефона, «Из галереи» — галерею; разрешения на камеру/микрофон, внешние ссылки открываются в браузере.
+- Workflow `.github/workflows/build-apk.yml` перед сборкой копирует `public/` в `android/app/src/main/assets/www/` и делает пути ассетов относительными (в WebView страница открыта как `file://`). Оригиналы в `public/` не меняются.
 - Версия: `versionName` в `android/app/build.gradle`, `versionCode` подставляется из номера сборки GitHub (`github.run_number`).
 - Локальная сборка (при установленных JDK 17 + Android SDK): `cd android && gradle :app:assembleDebug`.
 

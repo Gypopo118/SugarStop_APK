@@ -45,9 +45,13 @@ jobs:
         run: |
           rm -f android/app/src/main/assets/www/.gitkeep
           cp -r public/* android/app/src/main/assets/www/
-          # WebView отдаёт ассеты через https-origin (WebViewAssetLoader),
-          # поэтому абсолютные пути (/x) работают как есть. Оригиналы в /public не трогаем.
-          ls android/app/src/main/assets/www/ android/app/src/main/assets/www/icons | head -40
+          # В WebView страница открыта как file:// — абсолютные пути (/x) там не резолвятся,
+          # поэтому в копии для APK делаем их относительными. Оригиналы в /public не трогаем.
+          sed -i 's|href="/|href="./|g; s|src="/|src="./|g' android/app/src/main/assets/www/index.html
+          echo '--- bundled index.html asset refs ---'
+          grep -o '(href|src)="[^"]*"' android/app/src/main/assets/www/index.html | head -30
+          echo '--- leftover absolute refs (must be empty) ---'
+          grep -o '(href|src)="/[^"]*"' android/app/src/main/assets/www/index.html || echo 'OK: no absolute asset refs'
 
       - name: Check JS syntax
         run: |
@@ -67,7 +71,7 @@ jobs:
         run: |
           ls -la app/build/outputs/apk/debug/
           cp app/build/outputs/apk/debug/app-debug.apk \
-             "SugarStop-v1.0.1-build.${{ github.run_number }}.apk"
+             "SugarStop-v1.0.2-build.${{ github.run_number }}.apk"
           ls -la *.apk
         working-directory: android
 
@@ -86,7 +90,7 @@ jobs:
             echo ''
             echo 'Скачивание: этот запуск → раздел **Artifacts** → **SugarStop-APK**.'
             echo ''
-            echo 'Файл: `SugarStop-v1.0.1-build.${{ github.run_number }}.apk`'
+            echo 'Файл: `SugarStop-v1.0.2-build.${{ github.run_number }}.apk`'
             echo ''
             echo 'Установка на Android: скопируйте APK на телефон → откройте → разрешите «Установку из неизвестных источников» → Установить.'
             echo 'При первом запуске выдайте доступ к камере (и микрофону для голосового ввода).'

@@ -102,10 +102,9 @@ const analyzeError = document.getElementById("analyzeError");
 let currentPhotoDataUrl = null;
 let mediaStream = null;
 
-// В APK (WebView) живой видоискатель может быть недоступен на части устройств —
-// тогда «Сделать фото» открывает нативную камеру через file-chooser.
+// В APK страница открыта как file:// — живого видоискателя нет,
+// поэтому «Сделать фото» сразу открывает нативную камеру через file-chooser.
 const isApkWebView = typeof navigator !== "undefined" && /SugarStopAPK/.test(navigator.userAgent || "");
-let apkCameraFailed = false;
 
 async function startCamera() {
   try {
@@ -119,7 +118,10 @@ async function startCamera() {
     frameHint.hidden = true;
   } catch (e) {
     // Camera unavailable (permissions, desktop, etc) — fall back to file input silently.
-    if (isApkWebView) apkCameraFailed = true;
+    if (isApkWebView) {
+      const hintP = frameHint.querySelector("p");
+      if (hintP) hintP.textContent = "Нажмите «Сделать фото» — откроется камера";
+    }
     frameHint.hidden = false;
   }
 }
@@ -159,7 +161,8 @@ function setPhoto(dataUrl) {
 btnCamera.addEventListener("click", () => {
   if (mediaStream && !camStream.hidden) {
     setPhoto(photoFromVideoFrame());
-  } else if (isApkWebView && apkCameraFailed && cameraInput) {
+  } else if (isApkWebView && cameraInput) {
+    // В APK живого видоискателя нет — сразу открываем нативную камеру.
     cameraInput.click();
   } else {
     startCamera();
