@@ -14,23 +14,31 @@ import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import androidx.webkit.WebViewAssetLoader;
+
 /**
  * SugarStop — fullscreen WebView over the bundled PWA
  * (android/app/src/main/assets/www, synced from /public by CI).
  *
- * No backend URL is needed: when /api/analyze is unreachable (file://),
+ * Assets are served through WebViewAssetLoader under an https:// origin
+ * (instead of file://) so the page runs in a secure context and
+ * getUserMedia() camera preview works.
+ *
+ * No backend URL is needed: when /api/analyze is unreachable,
  * the PWA falls back to direct provider calls via SugarStopDirect.
  */
 public class MainActivity extends Activity {
 
     private static final int REQUEST_CODE_FILE_CHOOSER = 1001;
     private static final int REQUEST_CODE_PERMISSIONS = 1002;
-    private static final String START_PAGE = "file:///android_asset/www/index.html";
+    private static final String APP_ASSETS_HOST = "appassets.androidx.webkit.assets";
+    private static final String START_PAGE = "https://" + APP_ASSETS_HOST + "/index.html";
 
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
@@ -54,6 +62,10 @@ public class MainActivity extends Activity {
     }
 
     private void configureWebView() {
+        final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
+                .addPathHandler(new WebViewAssetLoader.AssetsPathHandler(this, "www"))
+                .build();
+
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -61,8 +73,6 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(true);
         s.setAllowContentAccess(true);
-        // PWA is bundled under file://, AI endpoints are https:// —
-        // allow the bundled pages to call them directly.
         s.setAllowFileAccessFromFileURLs(true);
         s.setAllowUniversalAccessFromFileURLs(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
@@ -72,9 +82,20 @@ public class MainActivity extends Activity {
         s.setDisplayZoomControls(false);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         String ua = s.getUserAgentString();
-        s.setUserAgentString(ua + " SugarStopAPK/1.0");
+        s.setUserAgentString(ua + " SugarStopAPK/1.0.1");
 
         webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                return assetLoader.shouldInterceptRequest(request.getUrl());
+            }
+
+            @Override
+            @SuppressWarnings("deprecation")
+            public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
+                return assetLoader.shouldInterceptRequest(Uri.parse(url));
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 return handleUrl(request.getUrl());
@@ -90,8 +111,11 @@ public class MainActivity extends Activity {
                 if (uri == null) return true;
                 String scheme = uri.getScheme();
                 if (scheme == null) return true;
-                // Everything local stays inside the WebView.
+                // Bundled PWA pages stay inside the WebView.
                 if (scheme.equals("file") || scheme.equals("about") || scheme.equals("data")) {
+                    return false;
+                }
+                if (scheme.equals("https") && APP_ASSETS_HOST.equals(uri.getHost())) {
                     return false;
                 }
                 // External links (e.g. platform.deepseek.com) open in the browser.

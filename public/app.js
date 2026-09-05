@@ -95,11 +95,17 @@ const shotPreview = document.getElementById("shotPreview");
 const frameHint = document.getElementById("frameHint");
 const btnCamera = document.getElementById("btnCamera");
 const fileInput = document.getElementById("fileInput");
+const cameraInput = document.getElementById("cameraInput");
 const btnAnalyze = document.getElementById("btnAnalyze");
 const analyzeError = document.getElementById("analyzeError");
 
 let currentPhotoDataUrl = null;
 let mediaStream = null;
+
+// В APK (WebView) живой видоискатель может быть недоступен на части устройств —
+// тогда «Сделать фото» открывает нативную камеру через file-chooser.
+const isApkWebView = typeof navigator !== "undefined" && /SugarStopAPK/.test(navigator.userAgent || "");
+let apkCameraFailed = false;
 
 async function startCamera() {
   try {
@@ -113,6 +119,7 @@ async function startCamera() {
     frameHint.hidden = true;
   } catch (e) {
     // Camera unavailable (permissions, desktop, etc) — fall back to file input silently.
+    if (isApkWebView) apkCameraFailed = true;
     frameHint.hidden = false;
   }
 }
@@ -152,14 +159,14 @@ function setPhoto(dataUrl) {
 btnCamera.addEventListener("click", () => {
   if (mediaStream && !camStream.hidden) {
     setPhoto(photoFromVideoFrame());
+  } else if (isApkWebView && apkCameraFailed && cameraInput) {
+    cameraInput.click();
   } else {
     startCamera();
   }
 });
 
-fileInput.addEventListener("change", () => {
-  const file = fileInput.files[0];
-  if (!file) return;
+function processImageFile(file) {
   const reader = new FileReader();
   reader.onload = () => {
     const img = new Image();
@@ -177,7 +184,19 @@ fileInput.addEventListener("change", () => {
     img.src = reader.result;
   };
   reader.readAsDataURL(file);
+}
+
+fileInput.addEventListener("change", () => {
+  if (fileInput.files[0]) processImageFile(fileInput.files[0]);
+  fileInput.value = "";
 });
+
+if (cameraInput) {
+  cameraInput.addEventListener("change", () => {
+    if (cameraInput.files[0]) processImageFile(cameraInput.files[0]);
+    cameraInput.value = "";
+  });
+}
 
 // Start camera when the capture tab is visible; iOS requires a user gesture in
 // some contexts, so also allow tapping the shutter to trigger the permission prompt.
