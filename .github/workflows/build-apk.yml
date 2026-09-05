@@ -1,0 +1,115 @@
+name: Build SugarStop APK
+
+# Каждый пуш в master/main собирает APK.
+# Готовый файл: вкладка Actions → последний запуск → Artifacts → SugarStop-APK.
+# По тегу v* (например v1.0.0) APK дополнительно публикуется в Releases.
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Assemble debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform and build-tools
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Set up Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.7
+
+      - name: Sync PWA bundle into APK assets
+        run: |
+          rm -f android/app/src/main/assets/www/.gitkeep
+          cp -r public/* android/app/src/main/assets/www/
+          # В WebView страница открыта как file:// — абсолютные пути (/x) там не резолвятся,
+          # поэтому в копии для APK делаем их относительными. Оригиналы в /public не трогаем.
+          sed -i 's|href="/|href="./|g; s|src="/|src="./|g' android/app/src/main/assets/www/index.html
+          echo '--- bundled index.html asset refs ---'
+          grep -o '(href|src)="[^"]*"' android/app/src/main/assets/www/index.html | head -30
+          echo '--- leftover absolute refs (must be empty except /api + sw guard) ---'
+          grep -o '(href|src)="/[^"]*"' android/app/src/main/assets/www/index.html || echo 'OK: no absolute asset refs'
+
+      - name: Check JS syntax
+        run: |
+          node --check public/app.js
+          node --check public/api-direct.js
+
+      - name: Bump versionCode from run number
+        run: |
+          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/" android/app/build.gradle
+          grep -n 'versionCode\|versionName' android/app/build.gradle
+
+      - name: Build debug APK
+        run: gradle :app:assembleDebug --stacktrace
+        working-directory: android
+
+      - name: Rename APK
+        run: |
+          ls -la app/build/outputs/apk/debug/
+          cp app/build/outputs/apk/debug/app-debug.apk \
+             "SugarStop-v1.0.0-build.${{ github.run_number }}.apk"
+          ls -la *.apk
+        working-directory: android
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SugarStop-APK
+          path: android/*.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Summary
+        run: |
+          {
+            echo '## SugarStop APK готов ✅'
+            echo ''
+            echo 'Скачивание: этот запуск → раздел **Artifacts** → **SugarStop-APK**.'
+            echo ''
+            echo 'Файл: `SugarStop-v1.0.0-build.${{ github.run_number }}.apk`'
+            echo ''
+            echo 'Установка на Android: скопируйте APK на телефон → откройте → разрешите «Установку из неизвестных источников» → Установить.'
+            echo 'При первом запуске выдайте доступ к камере (и микрофону для голосового ввода).'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Attach APK to GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: SugarStop-APK
+          path: dist
+
+      - name: Publish to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.apk
+          generate_release_notes: true

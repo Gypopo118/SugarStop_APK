@@ -254,28 +254,49 @@ btnAnalyze.addEventListener("click", async () => {
   btnAnalyze.textContent = "Анализирую...";
 
   try {
-    const res = await fetch("/api/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        apiKey,
-        provider: settings.provider,
-        custom,
-        imageBase64: currentPhotoDataUrl,
-        refineText: refineText.value.trim().slice(0, 500),
-        xeGrams: settings.xeGrams,
-        hand: {
-          palmWidthCm: settings.palmWidth,
-          palmLengthCm: settings.palmLength,
-          fistThicknessCm: settings.fistThickness
-        }
-      })
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || `Сервер ответил ${res.status}`);
+    const payload = {
+      apiKey,
+      provider: settings.provider,
+      custom,
+      imageBase64: currentPhotoDataUrl,
+      refineText: refineText.value.trim().slice(0, 500),
+      xeGrams: settings.xeGrams,
+      hand: {
+        palmWidthCm: settings.palmWidth,
+        palmLengthCm: settings.palmLength,
+        fistThicknessCm: settings.fistThickness
+      }
+    };
+    // На сайте работает серверный /api/analyze. В APK (file://) бэкенда нет —
+    // тогда напрямую вызываем провайдера через встроенный SugarStopDirect.
+    let data = null;
+    let useDirect = false;
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        data = await res.json();
+      } else if (res.status === 404) {
+        useDirect = true;
+      } else {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Сервер ответил ${res.status}`);
+      }
+    } catch (err) {
+      if (err instanceof TypeError) {
+        // file:// в APK или нет сети до своего бэкенда — идём напрямую.
+        useDirect = true;
+      } else {
+        throw err;
+      }
     }
-    const data = await res.json();
+    if (useDirect) {
+      if (!window.SugarStopDirect) throw new Error("Нет связи с сервером анализа. Откройте приложение через сайт.");
+      data = await window.SugarStopDirect.analyze(payload);
+    }
     openResult(data);
   } catch (e) {
     analyzeError.textContent = "Не удалось получить оценку: " + e.message;
@@ -744,5 +765,5 @@ initPwaInstall();
 
 /* ---------- Service worker ---------- */
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js"));
+  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
 }
